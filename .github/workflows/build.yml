@@ -1,0 +1,93 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test (tweak catalog, profiles, active hours)
+        run: dotnet test tests/Lockstep.Tests/Lockstep.Tests.csproj -c Release
+
+      - name: Build app
+        run: dotnet build src/Lockstep/Lockstep.csproj -c Release
+
+  portable:
+    name: Portable exe (${{ matrix.rid }})
+    needs: test
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        rid: [win-x64, win-arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $v = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}'.TrimStart('v') } else { '0.0.0-ci.${{ github.run_number }}' }
+          "value=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Publish single-file exe
+        run: >
+          dotnet publish src/Lockstep/Lockstep.csproj -c Release -r ${{ matrix.rid }}
+          -p:Portable=true -p:Version=${{ steps.version.outputs.value }} -o out/${{ matrix.rid }}
+
+      - name: Rename
+        shell: pwsh
+        run: Move-Item out/${{ matrix.rid }}/Lockstep.exe out/Lockstep-${{ steps.version.outputs.value }}-${{ matrix.rid }}.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lockstep-${{ matrix.rid }}
+          path: out/Lockstep-*.exe
+          if-no-files-found: error
+
+  release:
+    name: GitHub release
+    if: github.ref_type == 'tag'
+    needs: portable
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum Lockstep-*.exe > SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Lockstep-*.exe
+            dist/SHA256SUMS.txt
+          generate_release_notes: true
+          body: |
+            **Download** `Lockstep-<version>-win-x64.exe` (most PCs) or `-win-arm64.exe` (Snapdragon / ARM PCs).
+            It's a single portable exe: no install and no .NET needed. It asks for administrator rights when it starts.
+
+            Windows SmartScreen may warn about an unsigned app: choose **More info → Run anyway**, or verify the file against `SHA256SUMS.txt`.
+            Create a restore point before bigger changes (Lockstep offers to).
