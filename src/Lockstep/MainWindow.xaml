@@ -3,6 +3,7 @@
     x:Class="Lockstep.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:core="using:Lockstep.Core"
     xmlns:vm="using:Lockstep.ViewModels"
     Title="Lockstep">
 
@@ -568,6 +569,103 @@
                 </ScrollViewer>
 
                 <!-- App permissions -->
+                <ScrollViewer x:Name="SetupPanel" Grid.Row="2" Grid.RowSpan="2" Visibility="Collapsed">
+                    <StackPanel Spacing="14" MaxWidth="680" HorizontalAlignment="Left" Margin="0,0,16,20">
+                        <TextBlock Text="Back up your files" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="Copy important files to a separate drive or your preferred backup service. Before making changes, verify that you can open a file from the backup." TextWrapping="Wrap" />
+                        <HyperlinkButton Content="Open Windows Backup settings" NavigateUri="ms-settings:backup" />
+                        <TextBlock Text="Create a system restore point" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="A restore point captures system files and settings at a point in time. Keep a separate backup of your personal files. Create a fresh restore point before removing apps, disabling services, or applying higher-risk tweaks." TextWrapping="Wrap" />
+                        <Button x:Name="SetupRestoreButton" Content="Create restore point" Click="SetupRestore_Click" />
+                        <InfoBar x:Name="SetupRestoreStatus" IsOpen="False" IsClosable="False" />
+                        <TextBlock Text="Review each change" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="Check the risk level and expand What this changes before applying a tweak. Apply a few changes at a time so you can tell which one caused a problem." TextWrapping="Wrap" />
+                        <TextBlock Text="Get help" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="Include your Windows version, the tweak or action involved, and what happened. Remove personal information from logs and screenshots before posting." TextWrapping="Wrap" />
+                        <HyperlinkButton Content="Lockstep on GitHub · Issues" NavigateUri="https://github.com/niruxx/Lockstep/issues" />
+                        <Button x:Name="SetupFinishButton" Content="Finish setup" Click="SetupFinish_Click" Style="{StaticResource AccentButtonStyle}" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Grid x:Name="PrivacyControlsPanel" Grid.Row="2" Grid.RowSpan="2" Visibility="Collapsed">
+                    <Pivot>
+                        <PivotItem Header="App network">
+                            <Grid RowSpacing="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Refresh to see established TCP connections. Lockstep keeps no connection history. Outbound blocks apply to the executable across all network profiles." TextWrapping="Wrap" />
+                                <CommandBar Grid.Row="1" x:Name="AppNetworkCommands" DefaultLabelPosition="Right" HorizontalAlignment="Left">
+                                    <AppBarButton Label="Refresh" Icon="Refresh" Click="NetworkRefresh_Click" />
+                                    <AppBarButton x:Name="NetworkBlockButton" Label="Block selected app" Icon="BlockContact" Click="NetworkBlock_Click" IsEnabled="False" />
+                                    <AppBarButton x:Name="NetworkRemoveButton" Label="Remove selected block" Icon="Undo" Click="NetworkRemove_Click" IsEnabled="False" />
+                                </CommandBar>
+                                <ListView x:Name="NetworkConnections" Grid.Row="2" AutomationProperties.Name="Established TCP connections" SelectionChanged="NetworkSelection_Changed">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="core:AppNetworkConnection">
+                                            <TextBlock Text="{x:Bind Display}" TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <TextBlock Grid.Row="3" Text="Lockstep app blocks" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <ListView x:Name="NetworkRules" Grid.Row="4" AutomationProperties.Name="Lockstep app blocks" SelectionChanged="NetworkSelection_Changed">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="core:AppNetworkBlockRule">
+                                            <TextBlock Text="{x:Bind Display}" TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Grid>
+                        </PivotItem>
+                        <PivotItem Header="Device privacy">
+                            <ScrollViewer>
+                                <StackPanel Spacing="12" Margin="0,0,12,16">
+                                    <TextBlock Text="Clipboard" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                    <TextBlock Text="Manage local history and cross-device sync separately. Clearing history keeps pinned items. Clear individual pinned items with Win+V." TextWrapping="Wrap" />
+                                    <Button Content="Clear clipboard history" Click="ClearClipboardHistory_Click" />
+                                    <HyperlinkButton Content="Manage clipboard policies in Lockstep" Tag="clipboard" Click="FindPrivacyTweaks_Click" />
+                                    <HyperlinkButton Content="Open Clipboard settings" NavigateUri="ms-settings:clipboard" />
+                                    <TextBlock Text="Wi-Fi random hardware addresses" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                    <TextBlock Text="Use random hardware addresses to reduce tracking by Wi-Fi networks. Check Windows’ adapter report, or select a saved network in Settings to change its setting when supported." TextWrapping="Wrap" />
+                                    <Button Content="Check Wi-Fi randomization status" Click="WifiPrivacyRefresh_Click" />
+                                    <TextBlock x:Name="WifiPrivacyStatus" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                    <HyperlinkButton Content="Manage known Wi-Fi networks" NavigateUri="ms-settings:network-wifisettings" />
+                                    <HyperlinkButton Content="Open Wi-Fi settings" NavigateUri="ms-settings:network-wifi" />
+                                    <TextBlock Text="Recall snapshots" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                    <TextBlock Text="On a supported Copilot+ PC, open Recall &amp; snapshots in Privacy &amp; security. Review sensitive information filtering, exclude apps or websites, or delete snapshots you already saved. Windows uses Windows Hello to authorize changes." TextWrapping="Wrap" />
+                                    <HyperlinkButton Content="Open Privacy &amp; security settings" NavigateUri="ms-settings:privacy" />
+                                    <TextBlock Text="Privacy on shared devices" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                    <HyperlinkButton Content="Find Lockstep’s lock screen notification policy" Tag="Hide app toasts" Click="FindPrivacyTweaks_Click" />
+                                    <HyperlinkButton Content="Manage lock screen notifications" NavigateUri="ms-settings:notifications" />
+                                    <HyperlinkButton Content="Check device encryption availability" NavigateUri="ms-settings:deviceencryption" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </PivotItem>
+                        <PivotItem Header="Change history">
+                            <Grid RowSpacing="12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Review the last 200 changes detected by Keep settings applied or a manual check. Report-only mode shows a notice when you open Lockstep if changes were recorded." TextWrapping="Wrap" />
+                                <ToggleSwitch x:Name="PrivacyReportOnly" Grid.Row="1" Header="Report changes without restoring them" Toggled="PrivacyReportOnly_Toggled" />
+                                <CommandBar Grid.Row="2" DefaultLabelPosition="Right" HorizontalAlignment="Left">
+                                    <AppBarButton Label="Refresh history" Icon="Refresh" Click="PrivacyHistoryRefresh_Click" />
+                                    <AppBarButton x:Name="PrivacyCheckButton" Label="Check tracked settings now" Icon="Find" Click="PrivacyCheck_Click" />
+                                    <AppBarButton Label="Clear history" Icon="Delete" Click="PrivacyHistoryClear_Click" />
+                                </CommandBar>
+                                <ListView x:Name="PrivacyHistoryList" Grid.Row="3" SelectionMode="None" AutomationProperties.Name="Privacy change history" />
+                            </Grid>
+                        </PivotItem>
+                    </Pivot>
+                </Grid>
+
                 <Grid x:Name="PermissionsPanel" Grid.Row="2" Grid.RowSpan="2" RowSpacing="12" Visibility="Collapsed">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -600,18 +698,18 @@
                                     </StackPanel>
                                     <ToggleSwitch x:Name="PermUserSwitch" Grid.Column="1" Toggled="PermUserSwitch_Toggled" OnContent="Allowed" OffContent="Blocked" />
                                 </Grid>
-                                <Grid Padding="16" CornerRadius="{StaticResource CardCornerRadius}" BorderThickness="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ColumnSpacing="16">
+                                <Grid x:Name="PermDesktopCard" Padding="16" CornerRadius="{StaticResource CardCornerRadius}" BorderThickness="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ColumnSpacing="16">
                                     <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Desktop apps" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                         <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                                                   Text="Programs not from the Store share one switch. Windows can't block them one by one." />
+                                                   Text="Windows provides a shared switch for desktop apps using supported access methods. Some activity may be missing." />
                                     </StackPanel>
                                     <ToggleSwitch x:Name="PermDesktopSwitch" Grid.Column="1" Toggled="PermDesktopSwitch_Toggled" OnContent="Allowed" OffContent="Blocked" />
                                 </Grid>
-                                <HyperlinkButton x:Name="ClearLocationLink" Content="Clear location history (opens Settings &gt; Location, press Clear)"
+                                <HyperlinkButton x:Name="LocationSettingsLink" Content="Open Windows Location settings"
                                                  NavigateUri="ms-settings:privacy-location" Padding="0,2" Visibility="Collapsed" />
-                                <TextBlock Text="Apps that asked for this permission" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                                <TextBlock Text="Apps reported by Windows" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
                             </StackPanel>
                         </ListView.Header>
                         <ListView.ItemContainerStyle>
@@ -631,7 +729,7 @@
                                         <TextBlock Text="{x:Bind DisplayName}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{x:Bind Detail}" FontSize="12" Opacity="0.65" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-                                    <ToggleSwitch Grid.Column="1" IsOn="{x:Bind Allowed, Mode=TwoWay}" IsEnabled="{x:Bind IsEditable}"
+                                    <ToggleSwitch Grid.Column="1" IsOn="{x:Bind Allowed, Mode=TwoWay}" Visibility="{x:Bind ToggleVisibility, Mode=OneWay}"
                                                   OnContent="Allowed" OffContent="Denied" />
                                 </Grid>
                             </DataTemplate>
@@ -689,7 +787,7 @@
                             <StackPanel Spacing="2">
                                 <TextBlock Text="Keep settings applied" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <TextBlock x:Name="EnforceText" TextWrapping="Wrap" Opacity="0.75"
-                                           Text="Windows updates sometimes switch settings back. When this is on, Lockstep checks every tweak you've applied each time you sign in and silently re-applies any that were reset. Results go to %ProgramData%\Lockstep\cli.log." />
+                                           Text="Lockstep checks tracked tweaks at sign-in. Choose automatic restoration or report-only mode under Privacy controls → Change history." />
                             </StackPanel>
                             <ToggleSwitch x:Name="EnforceToggle" Grid.Column="1" VerticalAlignment="Center"
                                           OnContent="On" OffContent="Off" Toggled="EnforceToggle_Toggled" />
@@ -708,7 +806,7 @@
                         </Grid>
 
                         <TextBlock Text="Safety" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,12,0,0" />
-                        <HyperlinkButton Content="Show the welcome screen again" Tag="welcome" Click="Tool_Click" Padding="0,2" />
+                        <HyperlinkButton Content="Open the setup guide" Click="OpenSetup_Click" Padding="0,2" />
                         <Grid Padding="16" ColumnSpacing="16" CornerRadius="{StaticResource CardCornerRadius}" BorderThickness="1"
                               Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">

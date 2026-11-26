@@ -68,7 +68,7 @@ It's in the spirit of O&O ShutUp10++, O&O AppBuster and Chris Titus' WinUtil, in
 
 ## ✨ Features
 
-### 🛡️ Privacy tweaks: 112 of them, in 12 sections
+### 🛡️ Privacy tweaks across 12 sections
 
 | | Section | Highlights |
 |---|---|---|
@@ -104,7 +104,8 @@ Every tweak has a risk level, a plain-English description, and an expandable **"
 - **Optional Windows apps:** Calculator, Photos, Terminal, HEIF/AV1/WebP codecs and more.
 - **Microsoft Edge:** fully uninstalled with Edge's own uninstaller, **keeping WebView2** so other apps don't break. It refuses to run without another browser installed.
 - **OneDrive:** uninstall or reinstall, keeping your files.
-- **App permissions:** every app that asked for your camera, mic, location, contacts… when it last used them, and a per-app allow/deny switch.
+- **App permissions:** review access Windows reports for your camera, mic, location, contacts and more. Manage supported per-app permissions and the shared desktop camera and microphone switches.
+- **Privacy controls:** inspect established TCP connections on demand and add or remove Lockstep-managed outbound firewall blocks. Connection snapshots stay in memory. The page also covers clipboard history, Wi-Fi hardware-address randomization, Recall settings, and lock screen privacy.
 
 ### 📦 Install & repositories
 
@@ -114,7 +115,7 @@ Every tweak has a risk level, a plain-English description, and an expandable **"
 ### 🖥️ Managing Windows installs
 
 - 💾 **Profiles:** export your tweaks (and apps to remove) to a `.json` file, then import it on another PC or apply it with `--config`.
-- 🔁 **Keep settings applied:** an optional sign-in task that quietly re-applies anything a Windows update switched back.
+- 🔁 **Keep settings applied:** an optional sign-in task that checks tracked settings and can try to restore changes. Choose report-only mode under **Privacy controls → Change history** to review detected changes in Lockstep. The account’s local history retains up to 200 entries and can be cleared from that page.
 - ⌨️ **Command line:** presets, profiles and single tweaks for setup scripts and unattended installs.
 - 🧳 **Portable:** a single self-contained `.exe` you can carry on a USB stick.
 
@@ -125,7 +126,7 @@ Restore points, *Revert all*, repair tools (reset Windows Update, reset network,
 ## 🛟 Safety first
 
 > [!IMPORTANT]
-> Before Aggressive or Extreme tweaks, uninstalling apps or Edge, or disabling services, **create a restore point and back up your files.** Lockstep offers a restore point before every bigger change, and shows a welcome screen with the same advice on first launch.
+> Before Aggressive or Extreme tweaks, uninstalling apps or Edge, or disabling services, **create a restore point and back up your files.** Lockstep opens the Setup guide on first launch. You can create a restore point there and find the link to GitHub Issues.
 
 - 💾 The original value of every registry setting, service and scheduled task is saved to `%ProgramData%\Lockstep\backup.json` **before** it's first changed. Reverting restores that exact value.
 - 🏷️ Hosts entries live in tagged `# >>> Lockstep [...]` blocks and firewall rules are named `Lockstep - Block ...`, so both come out cleanly. The untouched hosts file is kept as `hosts.lockstep.bak`.
@@ -145,7 +146,7 @@ dotnet build src\Lockstep\Lockstep.csproj -c Release
 
 Lockstep asks for administrator rights when it starts (UAC). Then:
 
-1. 👋 Read the welcome screen and **create a restore point**.
+1. 👋 Open the Setup guide, **back up your files**, and **create a restore point**.
 2. 🟢 Press **Apply recommended**. These tweaks don't break anything.
 3. 🔍 Browse the sections and read the warning before applying anything Limited, Aggressive or Extreme.
 4. 🔁 Optionally turn on **Keep settings applied** under Tools & backup.

@@ -260,6 +260,16 @@ public static class TweakCatalog
             "Clipboard contents are no longer synced between your devices through Microsoft's servers.",
             [ Lm(SystemPol, "AllowCrossDeviceClipboard", 0) ]),
 
+        T("privacy.clipboardhistory", "privacy", RiskLevel.Limited,
+            "Disable local clipboard history",
+            "Prevents Windows from storing clipboard history on this device. Ordinary copy and paste still works. On Home, use the Clipboard settings page.",
+            [ Lm(SystemPol, "AllowClipboardHistory", 0) ]),
+
+        T("privacy.lockscreentoasts", "privacy", RiskLevel.Limited,
+            "Hide app toasts on the lock screen",
+            "Keeps app notification previews off the lock screen for this account. On Home, use Windows Notifications settings.",
+            [ Cu(@"SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications", "NoToastApplicationNotificationOnLockScreen", 1) ]),
+
         T("privacy.settingsync", "privacy", RiskLevel.Limited,
             "Disable settings sync to your Microsoft account",
             "Themes, passwords, language and other settings are no longer uploaded to your Microsoft account.",

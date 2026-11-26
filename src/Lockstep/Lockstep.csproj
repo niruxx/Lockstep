@@ -31,6 +31,8 @@
   <PropertyGroup Condition="'$(Portable)' == 'true'">
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
+    <!-- WinUI can resolve the resource index even when the portable executable is renamed. -->
+    <ProjectPriFileName>resources.pri</ProjectPriFileName>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>

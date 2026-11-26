@@ -1,22 +1,23 @@
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using Lockstep.Core;
+using Microsoft.UI.Xaml;
 
 namespace Lockstep.ViewModels;
 
 /// <summary>One app in the App permissions list. Flipping the switch writes the same value Settings does.</summary>
-public sealed class PermissionItem(string capabilityId, AppPermissions.Entry entry, Action<string> log) : INotifyPropertyChanged
+public sealed class PermissionItem(string capabilityId, AppPermissions.Entry entry, bool canManage, Action<string> log) : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string DisplayName => entry.DisplayName;
-    public bool IsEditable => !entry.IsDesktopApp;
+    private bool IsEditable => !entry.IsDesktopApp && canManage;
+    public Visibility ToggleVisibility => IsEditable ? Visibility.Visible : Visibility.Collapsed;
 
     public string Detail =>
-        (entry.IsDesktopApp ? "Desktop app (controlled by the desktop-apps switch)  ·  " : "") +
+        (entry.IsDesktopApp ? "Desktop app · Observed access · " : "") +
         (entry.InUse ? "In use right now"
          : entry.LastUsed is { } t ? $"Last used {t.ToLocalTime():g}"
-         : "Never used");
+         : "No recorded use");
 
     private bool _allowed = entry.Allowed;
     public bool Allowed

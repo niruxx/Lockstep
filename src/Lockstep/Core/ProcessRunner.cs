@@ -39,10 +39,10 @@ public static class ProcessRunner
     }
 
     /// <summary>Runs a PowerShell script, base64-encoded so quoting can never break it.</summary>
-    public static ProcessResult PowerShell(string script, int timeoutMs = 300_000)
+    public static ProcessResult PowerShell(string script, int timeoutMs = 300_000, Encoding? outputEncoding = null)
     {
         var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
         return Run(System32(@"WindowsPowerShell\v1.0\powershell.exe"),
-            $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encoded}", timeoutMs);
+            $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encoded}", timeoutMs, outputEncoding);
     }
 }

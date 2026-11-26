@@ -41,6 +41,7 @@ public static class AppPermissions
     ];
 
     private const string Store = @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore";
+    public static bool HasDesktopSwitch(string capabilityId) => capabilityId is "webcam" or "microphone";
 
     public sealed record Entry(
         string Key,
@@ -54,6 +55,7 @@ public static class AppPermissions
         string CapabilityId,
         bool BlockedForAllUsers,
         bool UserSwitchOn,
+        bool DesktopSwitchOn,
         IReadOnlyList<Entry> Apps);
 
     public static State Load(string capabilityId)
@@ -64,7 +66,9 @@ public static class AppPermissions
             blockedMachineWide = string.Equals(key?.GetValue("Value") as string, "Deny", StringComparison.OrdinalIgnoreCase);
 
         using var cap = Registry.CurrentUser.OpenSubKey($@"{Store}\{capabilityId}");
+        using var nonPackaged = cap?.OpenSubKey("NonPackaged");
         bool userOn = !string.Equals(cap?.GetValue("Value") as string, "Deny", StringComparison.OrdinalIgnoreCase);
+        bool desktopOn = !string.Equals(nonPackaged?.GetValue("Value") as string, "Deny", StringComparison.OrdinalIgnoreCase);
 
         var apps = new List<Entry>();
         if (cap is not null)
@@ -78,7 +82,6 @@ public static class AppPermissions
                 apps.Add(Read(app, sub, names.TryGetValue(sub, out var n) ? n : FriendlyFamilyName(sub), desktop: false));
             }
 
-            using var nonPackaged = cap.OpenSubKey("NonPackaged");
             if (nonPackaged is not null)
             {
                 foreach (var sub in nonPackaged.GetSubKeyNames())
@@ -91,7 +94,7 @@ public static class AppPermissions
             }
         }
 
-        return new State(capabilityId, blockedMachineWide, userOn,
+        return new State(capabilityId, blockedMachineWide, userOn, desktopOn,
             apps.OrderByDescending(a => a.InUse)
                 .ThenByDescending(a => a.LastUsed ?? DateTime.MinValue)
                 .ThenBy(a => a.DisplayName, StringComparer.CurrentCultureIgnoreCase)
@@ -127,6 +130,8 @@ public static class AppPermissions
     /// <summary>Desktop apps share one switch per capability.</summary>
     public static void SetDesktopApps(string capabilityId, bool allowed)
     {
+        if (!HasDesktopSwitch(capabilityId))
+            throw new InvalidOperationException("This capability has no supported desktop-app switch.");
         using var key = Registry.CurrentUser.CreateSubKey($@"{Store}\{capabilityId}\NonPackaged");
         key.SetValue("Value", allowed ? "Allow" : "Deny", RegistryValueKind.String);
     }

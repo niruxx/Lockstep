@@ -166,26 +166,57 @@ public static class Enforcement
 
     /// <summary>Re-applies every tracked tweak that is no longer fully applied.</summary>
     /// <returns>Number of failed actions.</returns>
-    public static int Run(Action<string> log)
+    public static int Run(Action<string> log) => Check(log, reportOnly: PrivacyHistory.IsReportOnly).Failures;
+
+    public static int Report(Action<string> log) => Check(log, reportOnly: true).Detected;
+
+    private static (int Failures, int Detected) Check(Action<string> log, bool reportOnly)
     {
         var ids = LoadIds();
         var ctx = new TweakContext(BackupStore.Instance, log);
         int failures = 0, reapplied = 0;
+        var changes = new List<PrivacyHistory.Change>();
 
         foreach (var tweak in TweakCatalog.All.Where(t => ids.Contains(t.Id)))
         {
             var status = tweak.GetStatus();
             if (status is TweakStatus.Applied or TweakStatus.NotApplicable) continue;
-            if (tweak.GetBlockReason() is { } reason) { log($"Skipped: {tweak.Title}: {reason}"); continue; }
+            var detectedUtc = DateTimeOffset.UtcNow;
+            string outcome;
+            if (reportOnly)
+            {
+                outcome = "Reported";
+                log($"Detected: {tweak.Title} ({status})");
+            }
+            else if (tweak.GetBlockReason() is { } reason)
+            {
+                outcome = $"Skipped: {reason}";
+                log($"Skipped: {tweak.Title}: {reason}");
+            }
+            else
+            {
+                log($"Re-applying: {tweak.Title} (was {status})");
+                int errors = tweak.Apply(ctx);
+                failures += errors;
+                reapplied++;
+                outcome = errors > 0 ? $"Restore reported {errors} error(s)"
+                    : tweak.GetStatus() == TweakStatus.Applied ? "Restored" : "Restoration could not be verified";
+            }
 
-            log($"Re-applying: {tweak.Title} (was {status})");
-            failures += tweak.Apply(ctx);
-            reapplied++;
+            changes.Add(new(detectedUtc, tweak.Id, status, outcome));
         }
 
-        log(reapplied == 0
-            ? $"All {ids.Count} tracked tweaks are still applied."
-            : $"Re-applied {reapplied} tweak(s), {failures} error(s).");
-        return failures;
+        if (changes.Count > 0)
+        {
+            try { PrivacyHistory.Add(changes); }
+            catch (Exception ex)
+            {
+                log($"Could not save privacy history: {ex.Message}");
+                if (reportOnly) throw;
+            }
+        }
+
+        log($"Checked {ids.Count} tracked tweak(s), detected {changes.Count} change(s), attempted {reapplied} restore(s), {failures} error(s).");
+        return (failures, changes.Count);
     }
 }

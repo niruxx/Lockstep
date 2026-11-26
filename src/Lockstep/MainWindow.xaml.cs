@@ -11,9 +11,11 @@ namespace Lockstep;
 public sealed partial class MainWindow : Window
 {
     private const string AllCategory = "all";
+    private const string SetupCategory = "setup";
     private const string ToolsCategory = "tools";
     private const string AppsCategory = "apps";
     private const string PermissionsCategory = "permissions";
+    private const string PrivacyControlsCategory = "privacy-controls";
     private const string InstallCategory = "install";
     private const string RepositoriesCategory = "repositories";
 
@@ -52,7 +54,11 @@ public sealed partial class MainWindow : Window
             root.Loaded += async (_, _) =>
             {
                 if (App.ScreenshotFolder is { } folder) await CaptureScreenshotsAsync(folder);
-                else if (!WelcomeShown) await ShowWelcomeAsync();
+                else
+                {
+                    if (!SetupCompleted) OpenSetup();
+                    await ShowPrivacyReportAsync();
+                }
             };
 
         Nav.SelectedItem = Nav.MenuItems[0];
@@ -106,6 +112,7 @@ public sealed partial class MainWindow : Window
         Item("All tweaks", AllCategory, "");
 
         Header("Privacy");
+        Item("Privacy controls", PrivacyControlsCategory, "\uE72E");
         foreach (var id in new[] { "telemetry", "privacy", "ai", "search", "identity", "edge", "network" }) Category(id);
 
         Header("Windows");
@@ -115,6 +122,7 @@ public sealed partial class MainWindow : Window
         foreach (var id in new[] { "performance", "gaming" }) Category(id);
 
         Header("Manage");
+        Item("Setup guide", SetupCategory, "\uE946");
         Item("Apps", AppsCategory, "");
         Item("App permissions", PermissionsCategory, "");
         Item("Install", InstallCategory, "");
@@ -128,8 +136,10 @@ public sealed partial class MainWindow : Window
     private string PageGlyph() => _search.Length > 0 && _category is not (AppsCategory or InstallCategory) ? "" : _category switch
     {
         AllCategory => "",
+        SetupCategory => "\uE946",
         AppsCategory => "",
         PermissionsCategory => "",
+        PrivacyControlsCategory => "\uE72E",
         InstallCategory => "",
         RepositoriesCategory => "",
         ToolsCategory => "",
@@ -139,6 +149,12 @@ public sealed partial class MainWindow : Window
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItemContainer?.Tag is not string tag) return;
+        if (_category == PrivacyControlsCategory && tag != PrivacyControlsCategory)
+        {
+            NetworkConnections.ItemsSource = null;
+            NetworkRules.ItemsSource = null;
+            WifiPrivacyStatus.Text = "";
+        }
         _category = tag;
         if (!string.IsNullOrEmpty(_search)) SearchBox.Text = "";
         ApplyFilter();
@@ -154,6 +170,10 @@ public sealed partial class MainWindow : Window
     {
         bool apps = _category == AppsCategory;
         bool permissions = _category == PermissionsCategory;
+        bool setup = _category == SetupCategory;
+        SetupPanel.Visibility = setup ? Visibility.Visible : Visibility.Collapsed;
+        bool privacyControls = _category == PrivacyControlsCategory;
+        PrivacyControlsPanel.Visibility = privacyControls ? Visibility.Visible : Visibility.Collapsed;
         bool install = _category == InstallCategory;
         bool repos = _category == RepositoriesCategory;
         InstallPanel.Visibility = install ? Visibility.Visible : Visibility.Collapsed;
@@ -171,11 +191,26 @@ public sealed partial class MainWindow : Window
         ActiveHoursCard.Visibility = updates ? Visibility.Visible : Visibility.Collapsed;
         if (updates) InitActiveHoursCard();
         ToolsPanel.Visibility = tools ? Visibility.Visible : Visibility.Collapsed;
-        TweakList.Visibility = !apps && !tools && !permissions && !install && !repos ? Visibility.Visible : Visibility.Collapsed;
+        TweakList.Visibility = !apps && !tools && !permissions && !install && !repos && !privacyControls && !setup ? Visibility.Visible : Visibility.Collapsed;
         // Set before any early return below, or the tweak toolbar stays on top of other pages.
         Toolbar.Visibility = TweakList.Visibility;
         HeaderMeter.Visibility = TweakList.Visibility;
         HeaderIcon.Glyph = PageGlyph();
+
+        if (setup)
+        {
+            HeaderTitle.Text = "Set up Lockstep";
+            HeaderSubtitle.Text = "Prepare a backup and a way to recover before changing Windows.";
+            return;
+        }
+
+        if (privacyControls)
+        {
+            HeaderTitle.Text = "Privacy controls";
+            HeaderSubtitle.Text = "Review app connections, manage what Windows keeps, and inspect changes to tracked settings.";
+            LoadPrivacyHistory();
+            return;
+        }
 
         if (repos)
         {
@@ -242,7 +277,7 @@ public sealed partial class MainWindow : Window
 
     private void UpdateHeaderSubtitle()
     {
-        if (_category is AppsCategory or PermissionsCategory or InstallCategory or RepositoriesCategory || (_category == ToolsCategory && _search.Length == 0)) return;
+        if (_category is AppsCategory or PermissionsCategory or InstallCategory or RepositoriesCategory or PrivacyControlsCategory or SetupCategory || (_category == ToolsCategory && _search.Length == 0)) return;
 
         string description = _search.Length > 0 || _category == AllCategory
             ? "Every privacy tweak Lockstep offers. Start with \"Apply recommended\": those tweaks don't break anything."
@@ -566,10 +601,6 @@ public sealed partial class MainWindow : Window
                 await ApplyFeaturesAsync();
                 break;
 
-            case "welcome":
-                await ShowWelcomeAsync();
-                break;
-
             case "backupfolder":
                 SystemTools.OpenFolder(Path.GetDirectoryName(BackupStore.Instance.FilePath)!);
                 break;
@@ -732,22 +763,22 @@ public sealed partial class MainWindow : Window
     }
 
     // -------------------------------------------------------------------------------------
-    // First-run welcome
+    // First-run setup
     // -------------------------------------------------------------------------------------
 
     private const string SettingsKey = @"Software\Lockstep";
 
-    private static bool WelcomeShown
+    private static bool SetupCompleted
     {
         get
         {
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SettingsKey);
-            return key?.GetValue("WelcomeShown") is int v && v == 1;
+            return key?.GetValue("SetupCompleted") is int v && v == 1;
         }
         set
         {
             using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(SettingsKey);
-            key.SetValue("WelcomeShown", value ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+            key.SetValue("SetupCompleted", value ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
         }
     }
 
@@ -758,58 +789,46 @@ public sealed partial class MainWindow : Window
         return block;
     }
 
-    private async Task ShowWelcomeAsync()
+    private void OpenSetup() =>
+        Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, SetupCategory));
+
+    private void OpenSetup_Click(object sender, RoutedEventArgs e) => OpenSetup();
+
+    private void SetupFinish_Click(object sender, RoutedEventArgs e)
     {
-        var body = new StackPanel { Spacing = 12, MaxWidth = 560 };
-        body.Children.Add(Para(
-            "Lockstep puts you in control of what Windows shares and runs. It turns off telemetry, ads, Copilot and Recall data collection, " +
-            "blocks tracking endpoints, removes bloatware, and tunes Windows for performance and gaming."));
-        body.Children.Add(Para("How it works", strong: true));
-        body.Children.Add(Para(
-            "• Every tweak shows its risk level and, under \"What this changes\", the exact settings it touches.\n" +
-            "• Before changing anything, Lockstep saves the original value, so each tweak can be reverted, individually or all at once.\n" +
-            "• New here? Press \"Apply recommended\". Those tweaks don't break anything. Read the warning before applying Limited, Aggressive or Extreme tweaks."));
-        body.Children.Add(new InfoBar
-        {
-            Severity = InfoBarSeverity.Warning,
-            IsOpen = true,
-            IsClosable = false,
-            Title = "Back up before bigger changes",
-            Message = "Before Aggressive or Extreme tweaks, uninstalling apps or Edge, or disabling services, create a restore point and back up your files. " +
-                      "Some changes, such as blocking Microsoft services or removing apps, can't be fully undone by Lockstep alone.",
-        });
-        var showAgain = new CheckBox { Content = "Show this again next time" };
-        body.Children.Add(showAgain);
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = Content.XamlRoot,
-            Title = "Welcome to Lockstep",
-            Content = new ScrollViewer { Content = body, MaxHeight = 520 },
-            PrimaryButtonText = "Create a restore point now",
-            SecondaryButtonText = "Open Windows Backup",
-            CloseButtonText = "Continue",
-            DefaultButton = ContentDialogButton.Primary,
-        };
-
-        var result = await dialog.ShowAsync();
-        WelcomeShown = showAgain.IsChecked != true;
-
-        if (result == ContentDialogResult.Primary)
-        {
-            await RunBusyAsync(async () =>
-            {
-                bool ok = await CreateRestorePointAsync();
-                ShowStatus(ok ? InfoBarSeverity.Success : InfoBarSeverity.Error,
-                    ok ? "Restore point created" : "Restore point failed",
-                    ok ? "You can roll back to it from Windows Recovery or System Restore." : "See the activity log for details.");
-            });
-        }
-        else if (result == ContentDialogResult.Secondary)
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:backup") { UseShellExecute = true });
-        }
+        SetupCompleted = true;
+        Nav.SelectedItem = Nav.MenuItems[0];
     }
+
+    private async void SetupRestore_Click(object sender, RoutedEventArgs e) => await RunBusyAsync(async () =>
+    {
+        SetupRestoreButton.IsEnabled = false;
+        SetupFinishButton.IsEnabled = false;
+        SetupRestoreStatus.IsOpen = true;
+        SetupRestoreStatus.Severity = InfoBarSeverity.Informational;
+        SetupRestoreStatus.Title = "Creating a restore point";
+        SetupRestoreStatus.Message = "";
+        try
+        {
+            bool created = await CreateRestorePointAsync();
+            SetupRestoreStatus.Severity = created ? InfoBarSeverity.Success : InfoBarSeverity.Error;
+            SetupRestoreStatus.Title = created ? "Restore point created" : "Restore point failed";
+            SetupRestoreStatus.Message = created
+                ? "You can select this point in Windows System Restore."
+                : "Check the activity log for details. You can also create a restore point from Windows System Protection.";
+        }
+        catch (Exception ex)
+        {
+            SetupRestoreStatus.Severity = InfoBarSeverity.Error;
+            SetupRestoreStatus.Title = "Restore point failed";
+            SetupRestoreStatus.Message = ex.Message;
+        }
+        finally
+        {
+            SetupRestoreButton.IsEnabled = true;
+            SetupFinishButton.IsEnabled = true;
+        }
+    });
 
     // -------------------------------------------------------------------------------------
     // Install (package managers + app catalog)
@@ -1289,45 +1308,53 @@ public sealed partial class MainWindow : Window
     private async Task LoadPermissionsAsync()
     {
         if (SelectedCapability is not { } cap) return;
+        int request = ++_permissionLoadVersion;
+        PermUserSwitch.IsEnabled = false;
+        PermDesktopSwitch.IsEnabled = false;
+        VisiblePermissions.Clear();
         AppPermissions.State state;
         try { state = await Task.Run(() => AppPermissions.Load(cap.Id)); }
         catch (Exception ex)
         {
-            PermStatusText.Text = $"Couldn't read permissions: {ex.Message}";
+            if (request == _permissionLoadVersion) PermStatusText.Text = $"Couldn't read permissions: {ex.Message}";
             return;
         }
+        if (request != _permissionLoadVersion) return;
 
         _suppressPermSwitch = true;
         PermUserSwitchTitle.Text = $"Let apps use: {cap.Name}";
         PermUserSwitch.IsOn = state.UserSwitchOn;
         PermUserSwitch.IsEnabled = !state.BlockedForAllUsers;
-        var desktop = state.Apps.Where(a => a.IsDesktopApp).ToList();
-        PermDesktopSwitch.IsOn = desktop.Count == 0 || desktop.Any(a => a.Allowed);
-        PermDesktopSwitch.IsEnabled = !state.BlockedForAllUsers;
+        PermDesktopCard.Visibility = AppPermissions.HasDesktopSwitch(cap.Id) ? Visibility.Visible : Visibility.Collapsed;
+        PermDesktopSwitch.IsOn = state.DesktopSwitchOn;
+        PermDesktopSwitch.IsEnabled = !state.BlockedForAllUsers && state.UserSwitchOn;
         _suppressPermSwitch = false;
 
-        ClearLocationLink.Visibility = cap.Id == "location" ? Visibility.Visible : Visibility.Collapsed;
+        LocationSettingsLink.Visibility = cap.Id == "location" ? Visibility.Visible : Visibility.Collapsed;
 
-        VisiblePermissions.Clear();
-        foreach (var entry in state.Apps) VisiblePermissions.Add(new PermissionItem(cap.Id, entry, AppendLog));
+        foreach (var entry in state.Apps)
+            VisiblePermissions.Add(new PermissionItem(cap.Id, entry, state.UserSwitchOn && !state.BlockedForAllUsers, AppendLog));
 
         int inUse = state.Apps.Count(a => a.InUse);
         PermStatusText.Text = state.BlockedForAllUsers
             ? $"{cap.Name} is blocked for every app on this PC by a Lockstep tweak (or policy). Revert that tweak to manage apps one by one."
-            : $"{state.Apps.Count} app(s) asked for {cap.Name.ToLowerInvariant()} access" +
+            : $"{state.Apps.Count} app(s) reported for {cap.Name.ToLowerInvariant()}" +
               (inUse > 0 ? $", {inUse} using it right now." : ".");
     }
 
-    private void PermUserSwitch_Toggled(object sender, RoutedEventArgs e)
+    private int _permissionLoadVersion;
+
+    private async void PermUserSwitch_Toggled(object sender, RoutedEventArgs e)
     {
         if (_suppressPermSwitch || SelectedCapability is not { } cap) return;
         AppPermissions.SetUserSwitch(cap.Id, PermUserSwitch.IsOn);
         AppendLog($"{cap.Name}: apps {(PermUserSwitch.IsOn ? "allowed" : "blocked")} for your account");
+        await LoadPermissionsAsync();
     }
 
     private void PermDesktopSwitch_Toggled(object sender, RoutedEventArgs e)
     {
-        if (_suppressPermSwitch || SelectedCapability is not { } cap) return;
+        if (_suppressPermSwitch || SelectedCapability is not { } cap || !AppPermissions.HasDesktopSwitch(cap.Id)) return;
         AppPermissions.SetDesktopApps(cap.Id, PermDesktopSwitch.IsOn);
         AppendLog($"{cap.Name}: desktop apps {(PermDesktopSwitch.IsOn ? "allowed" : "blocked")}");
     }
